@@ -476,15 +476,15 @@ def load_data_ptb(batch_size, max_window_size, num_noise_words):
 #@tab tensorflow
 #@save
 def load_data_ptb(batch_size, max_window_size, num_noise_words):
-  sentences = read_ptb()
-  vocab = d2l.Vocab(sentences, min_freq=10)
-  subsampled = subsampling(sentences, vocab)
-  corpus = [vocab[line] for line in subsampled]
-  all_centers, all_contexts = get_centers_and_contexts(corpus, max_window_size)
-  all_negatives = get_negatives(all_contexts, corpus, num_noise_words)
+    sentences = read_ptb()
+    vocab = d2l.Vocab(sentences, min_freq=10)
+    subsampled = subsampling(sentences, vocab)
+    corpus = [vocab[line] for line in subsampled]
+    all_centers, all_contexts = get_centers_and_contexts(corpus, max_window_size)
+    all_negatives = get_negatives(all_contexts, corpus, num_noise_words)
 
-  data_iter = tf.data.Dataset.from_tensor_slices(batchify(np.column_stack((all_centers, all_contexts, all_negatives)))).batch(batch_size).shuffle(len(all_centers))
-  return data_iter, vocab
+    data_iter = tf.data.Dataset.from_tensor_slices(batchify(np.column_stack((all_centers, all_contexts, all_negatives)))).batch(batch_size).shuffle(len(all_centers))
+    return data_iter, vocab
 ```
 
 Let's print the first minibatch of the data iterator.
