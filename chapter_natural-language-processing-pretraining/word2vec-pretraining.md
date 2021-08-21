@@ -379,27 +379,27 @@ def train(net, data_iter, lr, num_epochs, device=d2l.try_gpu()):
 ```{.python .input}
 #@tab tensorflow
 def train(net, data_iter, lr, num_epochs):
-  optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
-  loss = BinaryCrossEntropyWithMask() 
-  animator = d2l.Animator(xlabel='epoch', ylabel='loss', xlim=[1, num_epochs])
-  metric = d2l.Accumulator(2) # Sum of losses, no. of tokens
-  for epoch in range(num_epochs):
-    timer, num_batches = d2l.Timer(), len(data_iter)
-    for i, batch in enumerate(data_iter):
-      center, context_negative, mask, label = [data for data in batch]
-      mask = tf.cast(mask, dtype=tf.float32)
-      with tf.GradientTape() as g:
-        pred = skip_gram(center, context_negative, net.layers[0], net.layers[1])
-        l = loss(label, tf.reshape(pred, label.shape), mask) / tf.reduce_sum(mask, axis=1) * mask.shape[1]
-      gradients = g.gradient(l, net.trainable_variables)
-      optimizer.apply_gradients(zip(gradients, net.trainable_variables))
-      metric.add(tf.reduce_sum(l), tf.size(l))
-      if (i + 1) % (num_batches // 5) == 0 or i == num_batches - 1:
-        animator.add(epoch + (i + 1) / num_batches, (metric[0] / metric[1], ))
-  print(
-      f'loss {metric[0] / metric[1]:.3f}, '
-      f'{metric[1] / timer.stop():.1f} tokens/sec on CPU'
-  )
+    optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
+    loss = BinaryCrossEntropyWithMask() 
+    animator = d2l.Animator(xlabel='epoch', ylabel='loss', xlim=[1, num_epochs])
+    metric = d2l.Accumulator(2) # Sum of losses, no. of tokens
+    for epoch in range(num_epochs):
+      timer, num_batches = d2l.Timer(), len(data_iter)
+      for i, batch in enumerate(data_iter):
+        center, context_negative, mask, label = [data for data in batch]
+        mask = tf.cast(mask, dtype=tf.float32)
+        with tf.GradientTape() as g:
+          pred = skip_gram(center, context_negative, net.layers[0], net.layers[1])
+          l = loss(label, tf.reshape(pred, label.shape), mask) / tf.reduce_sum(mask, axis=1) * mask.shape[1]
+        gradients = g.gradient(l, net.trainable_variables)
+        optimizer.apply_gradients(zip(gradients, net.trainable_variables))
+        metric.add(tf.reduce_sum(l), tf.size(l))
+        if (i + 1) % (num_batches // 5) == 0 or i == num_batches - 1:
+          animator.add(epoch + (i + 1) / num_batches, (metric[0] / metric[1], ))
+    print(
+        f'loss {metric[0] / metric[1]:.3f}, '
+        f'{metric[1] / timer.stop():.1f} tokens/sec on CPU'
+    )
 ```
 
 Now we can train a skip-gram model using negative sampling.
