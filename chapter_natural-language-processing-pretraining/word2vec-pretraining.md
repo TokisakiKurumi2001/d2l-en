@@ -38,6 +38,17 @@ data_iter, vocab = d2l.load_data_ptb(batch_size, max_window_size,
                                      num_noise_words)
 ```
 
+```{.python .input}
+#@tab tensorflow
+from d2l import tensorflow as d2l
+import tensorflow as tf
+import math
+
+batch_size, max_window_size, num_noise_words = 512, 5, 5
+data_iter, vocab = d2l.load_data_ptb(batch_size, max_window_size,
+                      num_noise_words)
+```
+
 ## The Skip-Gram Model
 
 We implement the skip-gram model
@@ -70,6 +81,14 @@ embed.weight
 embed = nn.Embedding(num_embeddings=20, embedding_dim=4)
 print(f'Parameter embedding_weight ({embed.weight.shape}, '
       f'dtype={embed.weight.dtype})')
+```
+
+```{.python .input}
+#@tab tensorflow
+embed = tf.keras.layers.Embedding(input_dim=20, output_dim=4)
+x = tf.constant([[1, 2, 3], [4, 5, 6]])
+embed(x)
+embed.weights
 ```
 
 The input of an embedding layer is the
@@ -131,6 +150,16 @@ def skip_gram(center, contexts_and_negatives, embed_v, embed_u):
     return pred
 ```
 
+```{.python .input}
+#@tab tensorflow
+def skip_gram(center, contexts_and_negatives, embed_v, embed_u):
+    v = embed_v(center)
+    u = embed_u(contexts_and_negatives)
+    u = tf.transpose(u, (0, 2, 1))
+    pred = tf.matmul(v, u)
+    return pred
+```
+
 Let's print the output shape of this `skip_gram` function for some example inputs.
 
 ```{.python .input}
@@ -141,6 +170,11 @@ skip_gram(np.ones((2, 1)), np.ones((2, 4)), embed, embed).shape
 #@tab pytorch
 skip_gram(torch.ones((2, 1), dtype=torch.long),
           torch.ones((2, 4), dtype=torch.long), embed, embed).shape
+```
+
+```{.python .input}
+#@tab tensorflow
+skip_gram(tf.ones((2, 1)), tf.ones((2, 4)), embed, embed).shape
 ```
 
 ## Training
@@ -175,6 +209,22 @@ class SigmoidBCELoss(nn.Module):
 loss = SigmoidBCELoss()
 ```
 
+```{.python .input}
+#@tab tensorflow
+class BinaryCrossEntropyWithMask(tf.keras.losses.Loss):
+  def __init__(self):
+    super().__init__()
+
+  def __call__(self, label, pred, mask):
+    bce = tf.keras.losses.BinaryCrossentropy(from_logits=True,
+              reduction=tf.keras.losses.Reduction.NONE)
+    loss = bce(tf.expand_dims(label, axis=2),
+              tf.expand_dims(pred, axis=2), sample_weight=mask)
+    return tf.reduce_mean(loss, axis=1)
+    
+loss = BinaryCrossEntropyWithMask()
+```
+
 Recall our descriptions
 of the mask variable
 and the label variable in
@@ -185,11 +235,25 @@ binary cross-entropy loss
 for the given variables.
 
 ```{.python .input}
-#@tab all
 pred = d2l.tensor([[1.1, -2.2, 3.3, -4.4]] * 2)
 label = d2l.tensor([[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0]])
 mask = d2l.tensor([[1, 1, 1, 1], [1, 1, 0, 0]])
 loss(pred, label, mask) * mask.shape[1] / mask.sum(axis=1)
+```
+
+```{.python .input}
+#@tab pytorch
+pred = d2l.tensor([[1.1, -2.2, 3.3, -4.4]] * 2)
+label = d2l.tensor([[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0]])
+mask = d2l.tensor([[1, 1, 1, 1], [1, 1, 0, 0]])
+loss(pred, label, mask) * mask.shape[1] / mask.sum(axis=1)
+```
+```{.python .input}
+#@tab tensorflow
+pred = tf.constant([[.5] * 4] * 2)
+label = tf.constant([[1., 0., 1., 0.]] * 2)
+mask = tf.constant([[1, 1, 1, 1], [1, 1, 0, 0]], dtype=tf.float32)
+bce(label, pred, mask) / tf.reduce_sum(mask, axis=1) * mask.shape[1]
 ```
 
 Below shows
@@ -235,6 +299,16 @@ net = nn.Sequential(nn.Embedding(num_embeddings=len(vocab),
                                  embedding_dim=embed_size),
                     nn.Embedding(num_embeddings=len(vocab),
                                  embedding_dim=embed_size))
+```
+
+```{.python .input}
+#@tab tensorflow
+embed_size = 100
+net = tf.keras.models.Sequential()
+net.add(tf.keras.layers.Embedding(input_dim=len(vocab),
+                  output_dim=embed_size))
+net.add(tf.keras.layers.Embedding(input_dim=len(vocab),
+                  output_dim=embed_size))
 ```
 
 ### Defining the Training Loop
@@ -302,6 +376,32 @@ def train(net, data_iter, lr, num_epochs, device=d2l.try_gpu()):
           f'{metric[1] / timer.stop():.1f} tokens/sec on {str(device)}')
 ```
 
+```{.python .input}
+#@tab tensorflow
+def train(net, data_iter, lr, num_epochs):
+  optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
+  loss = BinaryCrossEntropyWithMask() 
+  animator = d2l.Animator(xlabel='epoch', ylabel='loss', xlim=[1, num_epochs])
+  metric = d2l.Accumulator(2) # Sum of losses, no. of tokens
+  for epoch in range(num_epochs):
+    timer, num_batches = d2l.Timer(), len(data_iter)
+    for i, batch in enumerate(data_iter):
+      center, context_negative, mask, label = [data for data in batch]
+      mask = tf.cast(mask, dtype=tf.float32)
+      with tf.GradientTape() as g:
+        pred = skip_gram(center, context_negative, net.layers[0], net.layers[1])
+        l = loss(label, tf.reshape(pred, label.shape), mask) / tf.reduce_sum(mask, axis=1) * mask.shape[1]
+      gradients = g.gradient(l, net.trainable_variables)
+      optimizer.apply_gradients(zip(gradients, net.trainable_variables))
+      metric.add(tf.reduce_sum(l), tf.size(l))
+      if (i + 1) % (num_batches // 5) == 0 or i == num_batches - 1:
+        animator.add(epoch + (i + 1) / num_batches, (metric[0] / metric[1], ))
+  print(
+      f'loss {metric[0] / metric[1]:.3f}, '
+      f'{metric[1] / timer.stop():.1f} tokens/sec on CPU'
+  )
+```
+
 Now we can train a skip-gram model using negative sampling.
 
 ```{.python .input}
@@ -348,6 +448,20 @@ def get_similar_tokens(query_token, k, embed):
         print(f'cosine sim={float(cos[i]):.3f}: {vocab.to_tokens(i)}')
 
 get_similar_tokens('chip', 3, net[0])
+```
+
+```{.python .input}
+#@tab tensorflow
+def get_similar_tokens(query_token, k, embed):
+    W = embed
+    x = W[vocab[query_token]]
+    
+    cos = tf.reduce_sum(W * x, axis=1) / tf.sqrt(tf.reduce_sum(W * W, axis=1) * tf.reduce_sum(x * x) + 1e-9)
+    topk = tf.math.top_k(cos, k=k+1).indices.numpy()
+    for i in topk[1:]:
+        print('cosine sim=%.3f: %s' % (cos[i], (vocab.idx_to_token[i])))
+
+get_similar_tokens('chip', 3, net.get_weights()[0])
 ```
 
 ## Summary
