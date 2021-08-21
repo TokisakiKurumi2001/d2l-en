@@ -250,9 +250,9 @@ loss(pred, label, mask) * mask.shape[1] / mask.sum(axis=1)
 ```
 ```{.python .input}
 #@tab tensorflow
-pred = tf.constant([[.5] * 4] * 2)
-label = tf.constant([[1., 0., 1., 0.]] * 2)
-mask = tf.constant([[1, 1, 1, 1], [1, 1, 0, 0]], dtype=tf.float32)
+pred = tf.constant([[1.1, -2.2, 3.3, -4.4]] * 2)
+label = tf.constant([[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0]])
+mask = tf.constant([[1, 1, 1, 1], [1, 1, 0, 0]])
 bce(label, pred, mask) / tf.reduce_sum(mask, axis=1) * mask.shape[1]
 ```
 
