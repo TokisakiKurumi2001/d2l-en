@@ -483,7 +483,8 @@ def load_data_ptb(batch_size, max_window_size, num_noise_words):
     all_centers, all_contexts = get_centers_and_contexts(corpus, max_window_size)
     all_negatives = get_negatives(all_contexts, corpus, num_noise_words)
 
-    data_iter = tf.data.Dataset.from_tensor_slices(batchify(np.column_stack((all_centers, all_contexts, all_negatives)))).batch(batch_size).shuffle(len(all_centers))
+    data_iter = tf.data.Dataset.from_tensor_slices(batchify(np.column_stack((all_centers,
+    all_contexts, all_negatives)))).batch(batch_size).shuffle(len(all_centers))
     return data_iter, vocab
 ```
 
